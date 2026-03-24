@@ -9,6 +9,7 @@
 <meta name="theme-color" content="#1e3a5f" id="themeColor">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Weekly Task Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
 <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIldlZWtseSBUYXNrIFRyYWNrZXIiLAogICJzaG9ydF9uYW1lIjogIlRhc2tzIiwKICAic3RhcnRfdXJsIjogIi4iLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiMxMTEzMTciLAogICJ0aGVtZV9jb2xvciI6ICIjMWUzYTVmIiwKICAiaWNvbnMiOiBbXQp9">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -408,6 +409,7 @@ function render() {
     <div><h1>Weekly Task Tracker</h1><div class="save-status">Auto-saved ✓</div></div>
     <div class="title-actions">
       <button class="theme-toggle" onclick="cycleTheme()" title="${themeLabel()}">${themeIcon()}</button>
+      <button class="btn-sm" onclick="exportPDF()">📄 PDF</button>
       <button class="btn-sm" onclick="resetWeek()">Reset</button>
     </div>
   </div>`;
@@ -494,6 +496,261 @@ function switchTab(k){activeTab=k;render();}
 function updateTask(dk,i,f,v){week[dk].tasks[i][f]=v;if(f==='name'&&!v.trim())week[dk].tasks[i].done=false;save();if(f!=='name'&&f!=='hours')render();}
 function toggleDone(dk,i){const t=week[dk].tasks[i];if(!t.name.trim())return;t.done=!t.done;save();render();}
 function updateField(dk,f,v){week[dk][f]=v;save();}
+
+// ── PDF Export ────────────────────────────────────
+function exportPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pw = 210, margin = 16;
+  const cw = pw - margin * 2; // content width
+  let y = margin;
+
+  // Colors
+  const navy = [30, 58, 95];
+  const green = [22, 163, 74];
+  const grayDark = [55, 65, 81];
+  const grayMed = [107, 114, 128];
+  const grayLight = [229, 231, 235];
+  const white = [255, 255, 255];
+  const greenBg = [240, 253, 244];
+  const headerBg = [241, 243, 248];
+
+  // Find the week date range
+  const dates = DAYS.map(d => week[d.key].date).filter(d => d);
+  let weekLabel = 'Weekly Report';
+  if (dates.length > 0) {
+    const sorted = dates.sort();
+    weekLabel = `Weekly Report: ${sorted[0]} ~ ${sorted[sorted.length - 1]}`;
+  }
+
+  // Title
+  doc.setFontSize(18);
+  doc.setTextColor(...navy);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Weekly Task Report', margin, y);
+  y += 7;
+
+  doc.setFontSize(10);
+  doc.setTextColor(...grayMed);
+  doc.setFont('helvetica', 'normal');
+  doc.text(weekLabel, margin, y);
+  y += 4;
+
+  // Generated date
+  doc.setFontSize(8);
+  doc.text('Generated: ' + new Date().toLocaleDateString('ja-JP'), margin, y);
+  y += 8;
+
+  // Divider line
+  doc.setDrawColor(...navy);
+  doc.setLineWidth(0.5);
+  doc.line(margin, y, pw - margin, y);
+  y += 8;
+
+  // ── Weekly Summary Table ──
+  doc.setFontSize(12);
+  doc.setTextColor(...navy);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Weekly Summary', margin, y);
+  y += 6;
+
+  // Summary table header
+  const sumCols = [30, 22, 22, 30, 26, 48]; // widths
+  const sumHeaders = ['Day', 'Tasks', 'Done', 'Progress', 'Hours', 'Status'];
+  doc.setFillColor(...navy);
+  doc.rect(margin, y, cw, 7, 'F');
+  doc.setFontSize(8);
+  doc.setTextColor(...white);
+  doc.setFont('helvetica', 'bold');
+  let sx = margin;
+  sumHeaders.forEach((h, i) => {
+    doc.text(h, sx + sumCols[i] / 2, y + 5, { align: 'center' });
+    sx += sumCols[i];
+  });
+  y += 7;
+
+  // Summary table rows
+  let totalEntered = 0, totalDone = 0, totalHours = 0;
+  DAYS.forEach((d, idx) => {
+    const s = dayStats(week[d.key]);
+    totalEntered += s.entered;
+    totalDone += s.done;
+    totalHours += s.hours;
+
+    const rowBg = idx % 2 === 0 ? white : [248, 250, 252];
+    doc.setFillColor(...rowBg);
+    doc.rect(margin, y, cw, 6, 'F');
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...grayDark);
+
+    sx = margin;
+    const vals = [
+      d.label + ' ' + d.en,
+      s.entered ? String(s.entered) : '-',
+      s.done ? String(s.done) : '-',
+      s.entered ? Math.round(s.pct * 100) + '%' : '-',
+      s.hours > 0 ? s.hours.toFixed(1) : '-',
+      s.entered === 0 ? '-' : s.pct >= 0.8 ? 'Done' : s.pct >= 0.5 ? 'In Progress' : 'Behind'
+    ];
+
+    // Color the status
+    vals.forEach((v, i) => {
+      if (i === 5) {
+        if (v === 'Done') doc.setTextColor(...green);
+        else if (v === 'Behind') doc.setTextColor(220, 38, 38);
+        else if (v === 'In Progress') doc.setTextColor(202, 138, 4);
+        else doc.setTextColor(...grayMed);
+      }
+      doc.text(v, sx + sumCols[i] / 2, y + 4.2, { align: 'center' });
+      if (i === 5) doc.setTextColor(...grayDark);
+      sx += sumCols[i];
+    });
+    y += 6;
+  });
+
+  // Totals row
+  const wPct = totalEntered ? totalDone / totalEntered : 0;
+  doc.setFillColor(238, 244, 236);
+  doc.rect(margin, y, cw, 7, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...navy);
+  sx = margin;
+  const totVals = [
+    'TOTAL',
+    String(totalEntered),
+    String(totalDone),
+    totalEntered ? Math.round(wPct * 100) + '%' : '-',
+    totalHours > 0 ? totalHours.toFixed(1) : '-',
+    ''
+  ];
+  totVals.forEach((v, i) => {
+    doc.text(v, sx + sumCols[i] / 2, y + 5, { align: 'center' });
+    sx += sumCols[i];
+  });
+  y += 12;
+
+  // ── Daily Breakdowns ──
+  DAYS.forEach(d => {
+    const day = week[d.key];
+    const s = dayStats(day);
+    const completedTasks = day.tasks.filter(t => t.done && t.name.trim());
+    const incompleteTasks = day.tasks.filter(t => !t.done && t.name.trim());
+
+    if (s.entered === 0) return; // skip empty days
+
+    // Check if we need a new page
+    const estimatedHeight = 20 + (completedTasks.length + incompleteTasks.length) * 5.5 + 10;
+    if (y + estimatedHeight > 280) {
+      doc.addPage();
+      y = margin;
+    }
+
+    // Day header
+    doc.setFontSize(11);
+    doc.setTextColor(...navy);
+    doc.setFont('helvetica', 'bold');
+    const dayTitle = d.label + ' (' + d.en + ')' + (day.date ? '  —  ' + day.date : '');
+    doc.text(dayTitle, margin, y);
+    y += 2;
+
+    // Thin line under day header
+    doc.setDrawColor(...grayLight);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, pw - margin, y);
+    y += 4;
+
+    // Stats line
+    doc.setFontSize(8);
+    doc.setTextColor(...grayMed);
+    doc.setFont('helvetica', 'normal');
+    const statsLine = s.done + '/' + s.entered + ' completed  |  ' + s.hours.toFixed(1) + ' hours  |  ' + Math.round(s.pct * 100) + '% complete';
+    doc.text(statsLine, margin, y);
+    y += 5;
+
+    // Task table header
+    const taskCols = [8, 108, 20, 20]; // #, Task, Hours, Status
+    doc.setFillColor(...headerBg);
+    doc.rect(margin, y, cw, 5.5, 'F');
+    doc.setFontSize(7);
+    doc.setTextColor(...grayMed);
+    doc.setFont('helvetica', 'bold');
+    doc.text('#', margin + 4, y + 4, { align: 'center' });
+    doc.text('Task', margin + 10, y + 4);
+    doc.text('Hours', margin + taskCols[0] + taskCols[1] + taskCols[2] / 2, y + 4, { align: 'center' });
+    doc.text('Status', margin + taskCols[0] + taskCols[1] + taskCols[2] + taskCols[3] / 2, y + 4, { align: 'center' });
+    y += 5.5;
+
+    // Completed tasks first
+    let taskNum = 0;
+    completedTasks.forEach(t => {
+      taskNum++;
+      const hrs = parseFloat(t.hours);
+      doc.setFillColor(...greenBg);
+      doc.rect(margin, y, cw, 5.5, 'F');
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...grayMed);
+      doc.text(String(taskNum), margin + 4, y + 4, { align: 'center' });
+      doc.setTextColor(...grayDark);
+      doc.text(t.name.substring(0, 70), margin + 10, y + 4);
+      doc.text(isNaN(hrs) ? '-' : hrs.toFixed(1), margin + taskCols[0] + taskCols[1] + taskCols[2] / 2, y + 4, { align: 'center' });
+      doc.setTextColor(...green);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Done', margin + taskCols[0] + taskCols[1] + taskCols[2] + taskCols[3] / 2, y + 4, { align: 'center' });
+      y += 5.5;
+    });
+
+    // Incomplete tasks
+    incompleteTasks.forEach(t => {
+      taskNum++;
+      const hrs = parseFloat(t.hours);
+      const rowBg = taskNum % 2 === 0 ? white : [250, 251, 253];
+      doc.setFillColor(...rowBg);
+      doc.rect(margin, y, cw, 5.5, 'F');
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...grayMed);
+      doc.text(String(taskNum), margin + 4, y + 4, { align: 'center' });
+      doc.setTextColor(...grayDark);
+      doc.text(t.name.substring(0, 70), margin + 10, y + 4);
+      doc.text(isNaN(hrs) ? '-' : hrs.toFixed(1), margin + taskCols[0] + taskCols[1] + taskCols[2] / 2, y + 4, { align: 'center' });
+      doc.setTextColor(220, 38, 38);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Open', margin + taskCols[0] + taskCols[1] + taskCols[2] + taskCols[3] / 2, y + 4, { align: 'center' });
+      y += 5.5;
+    });
+
+    // Notes
+    if (day.notes && day.notes.trim()) {
+      y += 2;
+      doc.setFontSize(7.5);
+      doc.setTextColor(...grayMed);
+      doc.setFont('helvetica', 'italic');
+      doc.text('Notes: ' + day.notes.substring(0, 120), margin, y);
+      y += 4;
+    }
+
+    y += 8;
+  });
+
+  // Footer
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+    doc.setFontSize(7);
+    doc.setTextColor(...grayMed);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Weekly Task Tracker — Page ' + p + ' of ' + pageCount, pw / 2, 290, { align: 'center' });
+  }
+
+  // Generate filename with date
+  const now = new Date();
+  const fname = 'weekly_report_' + now.getFullYear() + ('0'+(now.getMonth()+1)).slice(-2) + ('0'+now.getDate()).slice(-2) + '.pdf';
+  doc.save(fname);
+}
 
 function resetWeek(){if(confirm('Reset all data for this week? This cannot be undone.')){week=emptyWeek();save();render();}}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}

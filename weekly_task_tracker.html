@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Tasks">
+<meta name="theme-color" content="#1e3a5f">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Weekly Task Tracker</title>
+
+<!-- Inline manifest via data URI -->
+<link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIldlZWtseSBUYXNrIFRyYWNrZXIiLAogICJzaG9ydF9uYW1lIjogIlRhc2tzIiwKICAic3RhcnRfdXJsIjogIi4iLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiNmOGY5ZmIiLAogICJ0aGVtZV9jb2xvciI6ICIjMWUzYTVmIiwKICAiaWNvbnMiOiBbXQp9">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy: #1e3a5f;
+    --navy-light: #2a4f7a;
+    --green: #16a34a;
+    --green-bg: #dcfce7;
+    --green-row: #f0fdf4;
+    --yellow: #ca8a04;
+    --yellow-bg: #fef9c3;
+    --red: #dc2626;
+    --gray-50: #f8f9fb;
+    --gray-100: #f1f3f8;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-400: #9ca3af;
+    --gray-500: #6b7280;
+    --gray-700: #374151;
+    --gray-900: #1f2937;
+    --radius: 8px;
+    --font: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--gray-50);
+    color: var(--gray-900);
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+    overflow-x: hidden;
+  }
+
+  /* ── Shell ─────────────────────────── */
+  .app {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 16px 14px 100px;
+    min-height: 100dvh;
+  }
+
+  .title-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .title-bar h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+  .title-bar .save-status { font-size: 12px; color: var(--gray-400); margin-top: 1px; }
+
+  .btn-reset {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--gray-200);
+    background: #fff;
+    font-size: 12px;
+    color: var(--gray-500);
+    cursor: pointer;
+    font-family: var(--font);
+  }
+
+  /* ── Tabs ───────────────────────────── */
+  .tabs {
+    display: flex;
+    border-bottom: 2px solid var(--gray-200);
+    margin-bottom: 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 0;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+
+  .tab {
+    padding: 9px 13px;
+    font-size: 13.5px;
+    font-weight: 400;
+    color: var(--gray-500);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-family: var(--font);
+    white-space: nowrap;
+    margin-bottom: -2px;
+    position: relative;
+    transition: color 0.15s;
+  }
+  .tab.active { font-weight: 600; color: var(--navy); border-bottom-color: var(--navy); }
+  .tab .dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #f59e0b;
+    margin-left: 4px;
+    vertical-align: super;
+  }
+  .tab .done-mark { margin-left: 3px; font-size: 11px; }
+
+  /* ── Day header fields ─────────────── */
+  .day-header {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .field-group { display: flex; align-items: center; gap: 6px; }
+  .field-group label { font-size: 12px; color: var(--gray-500); font-weight: 500; }
+  .field-group input[type="date"],
+  .field-group input[type="text"] {
+    padding: 5px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--gray-300);
+    font-size: 14px;
+    font-family: var(--font);
+    background: #fff;
+  }
+  .field-group input[type="text"] { width: 190px; }
+
+  /* ── Task table ────────────────────── */
+  .task-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 14px;
+  }
+  .task-table thead tr {
+    background: var(--gray-100);
+    text-transform: uppercase;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    color: var(--gray-500);
+  }
+  .task-table th {
+    padding: 9px 6px;
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .task-table th:first-child { border-radius: var(--radius) 0 0 0; width: 30px; }
+  .task-table th:nth-child(2) { text-align: left; }
+  .task-table th:nth-child(3) { width: 58px; }
+  .task-table th:last-child { border-radius: 0 var(--radius) 0 0; width: 48px; }
+
+  .task-table td { padding: 6px 6px; border-bottom: 1px solid var(--gray-200); }
+  .task-table .row-num { text-align: center; color: var(--gray-400); font-weight: 600; font-size: 12px; }
+  .task-table .hours-cell { text-align: center; }
+  .task-table .done-cell { text-align: center; }
+
+  .task-table tr.done-row { background: var(--green-row) !important; }
+  .task-table tr.even { background: #fff; }
+  .task-table tr.odd { background: var(--gray-50); }
+
+  .task-input {
+    width: 100%;
+    padding: 4px 6px;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    font-size: 14px;
+    font-family: var(--font);
+    background: transparent;
+    outline: none;
+    transition: border-color 0.15s;
+    color: var(--gray-900);
+  }
+  .task-input:focus { border-color: var(--gray-300); background: #fff; }
+  .task-input.struck { text-decoration: line-through; color: var(--gray-400); }
+
+  .hours-input {
+    width: 48px;
+    text-align: center;
+    padding: 4px 4px;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    font-size: 14px;
+    font-family: var(--font);
+    background: transparent;
+    outline: none;
+  }
+  .hours-input:focus { border-color: var(--gray-300); background: #fff; }
+
+  .task-table tfoot tr { background: var(--gray-100); font-weight: 600; }
+  .task-table tfoot td { padding: 9px 6px; }
+
+  /* ── Checkbox ──────────────────────── */
+  .checkbox {
+    width: 24px; height: 24px;
+    border-radius: 6px;
+    border: 2px solid var(--gray-300);
+    background: transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.13s ease;
+    padding: 0;
+    flex-shrink: 0;
+    -webkit-appearance: none;
+  }
+  .checkbox.checked {
+    border-color: var(--green);
+    background: var(--green-bg);
+  }
+  .checkbox:disabled { cursor: default; opacity: 0.35; }
+  .checkbox svg { display: none; }
+  .checkbox.checked svg { display: block; }
+
+  /* ── Footer (notes + 日報) ──────────── */
+  .day-footer {
+    display: flex;
+    gap: 12px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .notes-area { flex: 1; min-width: 180px; }
+  .notes-area label { font-size: 12px; color: var(--gray-500); font-weight: 500; }
+  .notes-area textarea {
+    width: 100%;
+    margin-top: 4px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--gray-300);
+    font-size: 14px;
+    font-family: var(--font);
+    background: #fff;
+    resize: vertical;
+    min-height: 48px;
+  }
+  .daily-report-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    user-select: none;
+    padding-top: 20px;
+    white-space: nowrap;
+  }
+  .daily-report-toggle.on { color: var(--green); }
+  .daily-report-toggle.off { color: var(--gray-500); }
+
+  /* ── Summary table ─────────────────── */
+  .summary-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+  }
+  .summary-table thead tr { background: var(--navy); color: #fff; }
+  .summary-table th {
+    padding: 10px 6px;
+    font-weight: 600;
+    text-align: center;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .summary-table th:first-child { border-radius: var(--radius) 0 0 0; text-align: left; }
+  .summary-table th:last-child { border-radius: 0 var(--radius) 0 0; }
+  .summary-table td { padding: 9px 6px; border-bottom: 1px solid var(--gray-200); text-align: center; }
+  .summary-table td:first-child { text-align: left; font-weight: 600; }
+  .summary-table tr.even { background: #fff; }
+  .summary-table tr.odd { background: #f8fafc; }
+  .summary-table tfoot tr { background: #eef4ec; font-weight: 700; }
+  .summary-table tfoot td { padding: 10px 6px; }
+
+  .pct-bar {
+    display: inline-block;
+    width: 48px; height: 6px;
+    border-radius: 3px;
+    background: var(--gray-200);
+    overflow: hidden;
+    vertical-align: middle;
+    margin-left: 4px;
+  }
+  .pct-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s ease; }
+
+  .status { font-weight: 600; font-size: 12px; white-space: nowrap; }
+
+  @media (max-width: 420px) {
+    .app { padding: 12px 10px 90px; }
+    .title-bar h1 { font-size: 18px; }
+    .tab { padding: 8px 10px; font-size: 13px; }
+    .summary-table { font-size: 12px; }
+    .summary-table th, .summary-table td { padding: 7px 4px; }
+    .field-group input[type="text"] { width: 150px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app" id="app"></div>
+
+<script>
+// ── Data ──────────────────────────────────────────
+const DAYS = [
+  { key: 'mon', label: '月', en: 'Mon' },
+  { key: 'tue', label: '火', en: 'Tue' },
+  { key: 'wed', label: '水', en: 'Wed' },
+  { key: 'thu', label: '木', en: 'Thu' },
+  { key: 'fri', label: '金', en: 'Fri' },
+];
+const NUM_TASKS = 10;
+const STORAGE_KEY = 'weekly-task-tracker-v2';
+
+function emptyTask() { return { name: '', hours: '', done: false }; }
+function emptyDay() { return { date: '', target: '', tasks: Array.from({ length: NUM_TASKS }, emptyTask), notes: '', dailyReportDone: false }; }
+function emptyWeek() { const w = {}; DAYS.forEach(d => w[d.key] = emptyDay()); return w; }
+
+function loadWeek() {
+  try { const s = localStorage.getItem(STORAGE_KEY); if (s) { const d = JSON.parse(s); return d.week || emptyWeek(); } } catch {}
+  return emptyWeek();
+}
+
+let week = loadWeek();
+let activeTab = 'summary';
+let saveTimer = null;
+
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ week, savedAt: new Date().toISOString() })); } catch {}
+    render();
+  }, 400);
+}
+
+// ── Stats ─────────────────────────────────────────
+function dayStats(day) {
+  const entered = day.tasks.filter(t => t.name.trim()).length;
+  const done = day.tasks.filter(t => t.done && t.name.trim()).length;
+  const hours = day.tasks.reduce((s, t) => { const h = parseFloat(t.hours); return s + (isNaN(h) ? 0 : h); }, 0);
+  const pct = entered ? done / entered : 0;
+  return { entered, done, hours, pct, avg: entered ? hours / entered : 0 };
+}
+
+function statusHTML(pct, entered) {
+  if (!entered) return '<span style="opacity:.3">—</span>';
+  if (pct >= .8) return '<span class="status" style="color:var(--green)">✅ Done</span>';
+  if (pct >= .5) return '<span class="status" style="color:var(--yellow)">🔶 Progress</span>';
+  return '<span class="status" style="color:var(--red)">🔴 Behind</span>';
+}
+
+function barColor(v) { return v >= .8 ? 'var(--green)' : v >= .5 ? 'var(--yellow)' : v > 0 ? 'var(--red)' : 'var(--gray-300)'; }
+function pctBarHTML(v) { return `<span class="pct-bar"><span class="pct-bar-fill" style="width:${Math.round(v*100)}%;background:${barColor(v)}"></span></span>`; }
+
+// ── Checkbox SVG ──────────────────────────────────
+const checkSVG = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7.5L5.5 10.5L11.5 3.5" stroke="#16a34a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+// ── Render ────────────────────────────────────────
+function render() {
+  const app = document.getElementById('app');
+  let html = '';
+
+  // Title bar
+  html += `<div class="title-bar">
+    <div><h1>Weekly Task Tracker</h1><div class="save-status">Auto-saved ✓</div></div>
+    <button class="btn-reset" onclick="resetWeek()">Reset Week</button>
+  </div>`;
+
+  // Tabs
+  html += '<div class="tabs">';
+  const tabs = [{ key: 'summary', label: '📊 Summary' }, ...DAYS.map(d => ({ key: d.key, label: `${d.label} ${d.en}` }))];
+  tabs.forEach(t => {
+    const cls = activeTab === t.key ? 'tab active' : 'tab';
+    let indicator = '';
+    if (t.key !== 'summary') {
+      const s = dayStats(week[t.key]);
+      if (s.entered > 0 && s.pct >= 1) indicator = '<span class="done-mark">✅</span>';
+      else if (s.entered > 0) indicator = '<span class="dot"></span>';
+    }
+    html += `<button class="${cls}" onclick="switchTab('${t.key}')">${t.label}${indicator}</button>`;
+  });
+  html += '</div>';
+
+  // Content
+  if (activeTab === 'summary') {
+    html += renderSummary();
+  } else {
+    html += renderDay(activeTab);
+  }
+
+  app.innerHTML = html;
+}
+
+function renderDay(dayKey) {
+  const day = week[dayKey];
+  const stats = dayStats(day);
+  let h = '';
+
+  // Header fields
+  h += `<div class="day-header">
+    <div class="field-group"><label>Date</label><input type="date" value="${day.date}" onchange="updateField('${dayKey}','date',this.value)"></div>
+    <div class="field-group"><label>Target</label><input type="text" value="${esc(day.target)}" placeholder="Weekly goal..." onchange="updateField('${dayKey}','target',this.value)"></div>
+  </div>`;
+
+  // Task table
+  h += '<table class="task-table"><thead><tr><th>#</th><th style="text-align:left">Task</th><th>Hours</th><th>Done</th></tr></thead><tbody>';
+  day.tasks.forEach((t, i) => {
+    const hasName = t.name.trim() !== '';
+    const rowCls = (t.done && hasName) ? 'done-row' : (i % 2 === 0 ? 'even' : 'odd');
+    const inputCls = (t.done && hasName) ? 'task-input struck' : 'task-input';
+    const cbCls = t.done ? 'checkbox checked' : 'checkbox';
+    const dis = hasName ? '' : 'disabled';
+    h += `<tr class="${rowCls}">
+      <td class="row-num">${i+1}</td>
+      <td><input class="${inputCls}" value="${esc(t.name)}" placeholder="Enter task..." oninput="updateTask('${dayKey}',${i},'name',this.value)"></td>
+      <td class="hours-cell"><input class="hours-input" type="number" step="0.25" min="0" value="${t.hours}" oninput="updateTask('${dayKey}',${i},'hours',this.value)"></td>
+      <td class="done-cell"><button class="${cbCls}" ${dis} onclick="toggleDone('${dayKey}',${i})">${checkSVG}</button></td>
+    </tr>`;
+  });
+  h += '</tbody><tfoot><tr>';
+  h += `<td></td><td style="text-align:right;padding-right:8px">TOTAL</td>`;
+  h += `<td style="text-align:center">${stats.hours > 0 ? stats.hours.toFixed(1) : '—'}</td>`;
+  h += `<td style="text-align:center;font-size:12px"><strong>${stats.done}</strong><span style="color:var(--gray-400)">/${stats.entered}</span></td>`;
+  h += '</tr></tfoot></table>';
+
+  // Footer
+  const drCls = day.dailyReportDone ? 'daily-report-toggle on' : 'daily-report-toggle off';
+  const drCb = day.dailyReportDone ? 'checkbox checked' : 'checkbox';
+  h += `<div class="day-footer">
+    <div class="notes-area"><label>Notes</label><textarea rows="2" oninput="updateField('${dayKey}','notes',this.value)">${esc(day.notes)}</textarea></div>
+    <div class="${drCls}" onclick="toggleDailyReport('${dayKey}')">
+      <button class="${drCb}">${checkSVG}</button> 日報入力済み
+    </div>
+  </div>`;
+
+  return h;
+}
+
+function renderSummary() {
+  const all = DAYS.map(d => ({ ...d, s: dayStats(week[d.key]) }));
+  const tot = all.reduce((a, d) => ({ entered: a.entered+d.s.entered, done: a.done+d.s.done, hours: a.hours+d.s.hours }), { entered:0, done:0, hours:0 });
+  const wPct = tot.entered ? tot.done / tot.entered : 0;
+
+  let h = '<table class="summary-table"><thead><tr><th>Day</th><th>Tasks</th><th>Done</th><th>Progress</th><th>Hours</th><th>Status</th></tr></thead><tbody>';
+  all.forEach((d, i) => {
+    const cls = i % 2 === 0 ? 'even' : 'odd';
+    h += `<tr class="${cls}">
+      <td>${d.label} <span style="color:var(--gray-400);font-weight:400">${d.en}</span></td>
+      <td>${d.s.entered || '—'}</td>
+      <td>${d.s.done || '—'}</td>
+      <td>${d.s.entered ? Math.round(d.s.pct*100)+'%' : '—'} ${d.s.entered ? pctBarHTML(d.s.pct) : ''}</td>
+      <td>${d.s.hours > 0 ? d.s.hours.toFixed(1) : '—'}</td>
+      <td>${statusHTML(d.s.pct, d.s.entered)}</td>
+    </tr>`;
+  });
+  h += `</tbody><tfoot><tr>
+    <td>TOTAL</td>
+    <td>${tot.entered}</td>
+    <td>${tot.done}</td>
+    <td>${tot.entered ? Math.round(wPct*100)+'%' : '—'} ${tot.entered ? pctBarHTML(wPct) : ''}</td>
+    <td>${tot.hours > 0 ? tot.hours.toFixed(1) : '—'}</td>
+    <td>${statusHTML(wPct, tot.entered)}</td>
+  </tr></tfoot></table>`;
+  return h;
+}
+
+// ── Actions ───────────────────────────────────────
+function switchTab(key) { activeTab = key; render(); }
+
+function updateTask(dayKey, idx, field, value) {
+  week[dayKey].tasks[idx][field] = value;
+  if (field === 'name' && !value.trim()) week[dayKey].tasks[idx].done = false;
+  save();
+  // Only re-render fully for done state changes (affects row styling)
+  if (field !== 'name' && field !== 'hours') render();
+}
+
+function toggleDone(dayKey, idx) {
+  const t = week[dayKey].tasks[idx];
+  if (!t.name.trim()) return;
+  t.done = !t.done;
+  save();
+  render();
+}
+
+function updateField(dayKey, field, value) {
+  week[dayKey][field] = value;
+  save();
+}
+
+function toggleDailyReport(dayKey) {
+  week[dayKey].dailyReportDone = !week[dayKey].dailyReportDone;
+  save();
+  render();
+}
+
+function resetWeek() {
+  if (confirm('Reset all data for this week? This cannot be undone.')) {
+    week = emptyWeek();
+    save();
+    render();
+  }
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Service Worker (inline, for offline) ──────────
+if ('serviceWorker' in navigator) {
+  const swCode = `
+    const CACHE = 'task-tracker-v1';
+    self.addEventListener('install', e => { self.skipWaiting(); });
+    self.addEventListener('activate', e => { e.waitUntil(clients.claim()); });
+    self.addEventListener('fetch', e => {
+      if (e.request.url === location.origin + location.pathname || e.request.url === location.origin + '/') {
+        e.respondWith(
+          fetch(e.request).then(r => {
+            const clone = r.clone();
+            caches.open(CACHE).then(c => c.put(e.request, clone));
+            return r;
+          }).catch(() => caches.match(e.request))
+        );
+      }
+    });
+  `;
+  const blob = new Blob([swCode], { type: 'application/javascript' });
+  const swURL = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swURL).catch(() => {});
+}
+
+// ── Boot ──────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
